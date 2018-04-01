@@ -892,22 +892,55 @@ public class OpenHABMainActivity extends AppCompatActivity implements
         for (int i = 0; i < mSitemapList.size(); i++) {
             sitemapLabels[i] = mSitemapList.get(i).label();
         }
+        if(getConnection() instanceof DemoConnection) {
+            Log.i(TAG, "Demo connection");
+            selectDemoSitemap();
+            return;
+        }
         selectSitemapDialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.mainmenu_openhab_selectsitemap)
                 .setItems(sitemapLabels, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int item) {
                         OpenHABSitemap sitemap = mSitemapList.get(item);
-                        Log.d(TAG, "Selected sitemap " + sitemap);
-                        PreferenceManager.getDefaultSharedPreferences(OpenHABMainActivity.this)
-                                .edit()
-                                .putString(Constants.PREFERENCE_SITEMAP_NAME, sitemap.name())
-                                .putString(Constants.PREFERENCE_SITEMAP_LABEL, sitemap.label())
-                                .apply();
-                        openSitemap(sitemap);
+                        Log.d(TAG, "Selected sitemap " + sitemap.name());
+                        saveAndOpenSitemap(sitemap);
                     }
                 })
                 .show();
+    }
+
+    private void selectDemoSitemap() {
+        // Check for language and contry, e.g. "en_US"
+        for (int i = 0; i < mSitemapList.size(); i++) {
+            if(mSitemapList.get(i).name().equals(Locale.getDefault().toString())) {
+                saveAndOpenSitemap(mSitemapList.get(i));
+                return;
+            }
+        }
+        // If not present, check for language, e.g. "en"
+        for (int i = 0; i < mSitemapList.size(); i++) {
+            if(mSitemapList.get(i).name().equals(Locale.getDefault().getLanguage())) {
+                saveAndOpenSitemap(mSitemapList.get(i));
+                return;
+            }
+        }
+        // Else use English sitemap
+        for (int i = 0; i < mSitemapList.size(); i++) {
+            if(mSitemapList.get(i).name().equals("demo") || mSitemapList.get(i).name().equals("en")) {
+                saveAndOpenSitemap(mSitemapList.get(i));
+                return;
+            }
+        }
+    }
+
+    private void saveAndOpenSitemap(OpenHABSitemap sitemap) {
+        PreferenceManager.getDefaultSharedPreferences(OpenHABMainActivity.this)
+                .edit()
+                .putString(Constants.PREFERENCE_SITEMAP_NAME, sitemap.name())
+                .putString(Constants.PREFERENCE_SITEMAP_LABEL, sitemap.label())
+                .apply();
+        openSitemap(sitemap);
     }
 
     private void openNotifications() {
