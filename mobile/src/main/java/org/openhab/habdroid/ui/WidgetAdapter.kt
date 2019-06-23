@@ -13,6 +13,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
@@ -31,6 +32,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.net.toUri
 import androidx.core.view.children
+import androidx.core.view.drawToBitmap
 import androidx.core.view.get
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
@@ -69,7 +71,7 @@ class WidgetAdapter(
 
     interface ItemClickListener {
         fun onItemClicked(widget: Widget): Boolean // returns whether click was handled
-        fun onItemLongClicked(widget: Widget): Boolean
+        fun onItemLongClicked(widget: Widget, holder: ViewHolder): Boolean
     }
 
     init {
@@ -192,7 +194,7 @@ class WidgetAdapter(
         val holder = view.tag as ViewHolder
         val position = holder.adapterPosition
         if (position != RecyclerView.NO_POSITION) {
-            return itemClickListener.onItemLongClicked(items[position])
+            return itemClickListener.onItemLongClicked(items[position], holder)
         }
         return false
     }
@@ -230,6 +232,14 @@ class WidgetAdapter(
         open fun start() {}
         open fun stop() {}
         open fun handleRowClick() {}
+    }
+
+    abstract class BaseImageViewHolder internal constructor(
+        inflater: LayoutInflater,
+        parent: ViewGroup,
+        @LayoutRes layoutResId: Int
+    ) : ViewHolder(inflater, parent, layoutResId) {
+        abstract fun getImage() : Bitmap
     }
 
     abstract class LabeledItemBaseViewHolder internal constructor(
@@ -432,7 +442,7 @@ class WidgetAdapter(
         inflater: LayoutInflater,
         private val parent: ViewGroup,
         private val connection: Connection
-    ) : ViewHolder(inflater, parent, R.layout.widgetlist_imageitem) {
+    ) : BaseImageViewHolder(inflater, parent, R.layout.widgetlist_imageitem) {
         private val imageView: WidgetImageView = itemView.findViewById(R.id.image)
         private var refreshRate: Int = 0
 
@@ -472,6 +482,10 @@ class WidgetAdapter(
 
         override fun stop() {
             imageView.cancelRefresh()
+        }
+
+        override fun getImage() : Bitmap {
+            return imageView.drawToBitmap()
         }
     }
 
@@ -696,7 +710,7 @@ class WidgetAdapter(
         private val parent: ViewGroup,
         private val chartTheme: CharSequence?,
         private val connection: Connection
-    ) : ViewHolder(inflater, parent, R.layout.widgetlist_chartitem) {
+    ) : BaseImageViewHolder(inflater, parent, R.layout.widgetlist_chartitem) {
         private val chart: WidgetImageView = itemView.findViewById(R.id.chart)
         private val random = Random()
         private val prefs: SharedPreferences
@@ -766,6 +780,10 @@ class WidgetAdapter(
 
         override fun stop() {
             chart.cancelRefresh()
+        }
+
+        override fun getImage(): Bitmap {
+            return chart.drawToBitmap()
         }
     }
 

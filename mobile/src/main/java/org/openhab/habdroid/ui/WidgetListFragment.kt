@@ -134,7 +134,7 @@ class WidgetListFragment : Fragment(), WidgetAdapter.ItemClickListener {
         return false
     }
 
-    override fun onItemLongClicked(widget: Widget): Boolean {
+    override fun onItemLongClicked(widget: Widget, holder: WidgetAdapter.ViewHolder): Boolean {
         val context = context ?: return false
         val suggestedCommands = suggestedCommandsFactory.fill(widget)
         val labels = suggestedCommands.labels
@@ -145,6 +145,9 @@ class WidgetListFragment : Fragment(), WidgetAdapter.ItemClickListener {
                 labels.add(getString(R.string.home_shortcut_pin_to_home))
             }
         }
+        if (widget.type == Widget.Type.Chart || widget.type == Widget.Type.Image) {
+            labels.add("Share as image")
+        }
 
         if (labels.isEmpty()) {
             return false
@@ -153,6 +156,7 @@ class WidgetListFragment : Fragment(), WidgetAdapter.ItemClickListener {
         AlertDialog.Builder(context)
             .setTitle(R.string.nfc_dialog_title)
             .setItems(labels.toTypedArray()) { _, which ->
+                (holder as WidgetAdapter.BaseImageViewHolder).getImage()
                 if (which == commands.size + 1 && widget.linkedPage != null) {
                     createShortcut(context, widget.linkedPage)
                 } else {
