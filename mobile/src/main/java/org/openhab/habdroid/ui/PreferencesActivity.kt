@@ -206,9 +206,6 @@ class PreferencesActivity : AbstractBaseActivity() {
         override val titleResId: Int @StringRes get() = R.string.action_settings
         @ColorInt var previousColor: Int = 0
 
-        lateinit var phoneStatePref: ItemUpdatingPreference
-        lateinit var wifiSsidPref: ItemUpdatingPreference
-
         override fun onStart() {
             super.onStart()
             updateConnectionSummary(PrefKeys.SUBSCREEN_LOCAL_CONNECTION,
@@ -226,6 +223,7 @@ class PreferencesActivity : AbstractBaseActivity() {
 
             val localConnPref = getPreference(PrefKeys.SUBSCREEN_LOCAL_CONNECTION)
             val remoteConnPref = getPreference(PrefKeys.SUBSCREEN_REMOTE_CONNECTION)
+            val sendDeviceInfoPref = getPreference(PrefKeys.SUBSCREEN_SEND_DEVICE_INFO)
             val themePref = getPreference(PrefKeys.THEME)
             val accentColorPref = getPreference(PrefKeys.ACCENT_COLOR) as ColorPreferenceCompat
             val clearCachePref = getPreference(PrefKeys.CLEAR_CACHE)
@@ -233,12 +231,6 @@ class PreferencesActivity : AbstractBaseActivity() {
             val showSitemapInDrawerPref = getPreference(PrefKeys.SHOW_SITEMAPS_IN_DRAWER)
             val ringtonePref = getPreference(PrefKeys.TONE)
             val fullscreenPreference = getPreference(PrefKeys.FULLSCREEN)
-            val sendDeviceInfoPrefixPref = getPreference(PrefKeys.SEND_DEVICE_INFO_PREFIX)
-            val alarmClockPref = getPreference(PrefKeys.SEND_ALARM_CLOCK) as ItemUpdatingPreference
-            phoneStatePref = getPreference(PrefKeys.SEND_PHONE_STATE) as ItemUpdatingPreference
-            val batteryLevelPref = getPreference(PrefKeys.SEND_BATTERY_LEVEL) as ItemUpdatingPreference
-            val chargingStatePref = getPreference(PrefKeys.SEND_CHARGING_STATE) as ItemUpdatingPreference
-            wifiSsidPref = getPreference(PrefKeys.SEND_CHARGING_STATE) as ItemUpdatingPreference
             val iconFormatPreference = getPreference(PrefKeys.ICON_FORMAT)
             val taskerPref = getPreference(PrefKeys.TASKER_PLUGIN_ENABLED)
             val vibrationPref = getPreference(PrefKeys.NOTIFICATION_VIBRATION)
@@ -273,6 +265,11 @@ class PreferencesActivity : AbstractBaseActivity() {
 
             remoteConnPref.setOnPreferenceClickListener {
                 parentActivity.openSubScreen(RemoteConnectionSettingsFragment())
+                false
+            }
+
+            sendDeviceInfoPref.setOnPreferenceClickListener {
+                parentActivity.openSubScreen(SendDeviceInfoSettingsFragment())
                 false
             }
 
@@ -368,45 +365,6 @@ class PreferencesActivity : AbstractBaseActivity() {
                 }
             }
 
-            phoneStatePref.setOnPreferenceChangeListener { preference, newValue ->
-                @Suppress("UNCHECKED_CAST")
-                val value = newValue as Pair<Boolean, String>
-                if (value.first && !preference.context.hasPermission(Manifest.permission.READ_PHONE_STATE)) {
-                    Log.d(TAG, "Request READ_PHONE_STATE permission")
-                    requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE),
-                        PERMISSIONS_REQUEST_READ_PHONE_STATE)
-                }
-
-                true
-            }
-
-            wifiSsidPref.setOnPreferenceChangeListener { preference, newValue ->
-                @Suppress("UNCHECKED_CAST")
-                val value = newValue as Pair<Boolean, String>
-                if (value.first &&
-                    !preference.context.hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                ) {
-                    Log.d(TAG, "Request ACCESS_FINE_LOCATION permission")
-                    requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                        PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION)
-                }
-
-                true
-            }
-
-            updatePrefixSummary(sendDeviceInfoPrefixPref, prefs.getString(PrefKeys.SEND_DEVICE_INFO_PREFIX))
-            sendDeviceInfoPrefixPref.setOnPreferenceChangeListener { _, newValue ->
-                val prefix = newValue as String
-                updatePrefixSummary(sendDeviceInfoPrefixPref, prefix)
-                alarmClockPref.updateSummaryAndIcon(prefix)
-                phoneStatePref.updateSummaryAndIcon(prefix)
-                batteryLevelPref.updateSummaryAndIcon(prefix)
-                chargingStatePref.updateSummaryAndIcon(prefix)
-                wifiSsidPref.updateSummaryAndIcon(prefix)
-                true
-            }
-
             screenLockPref.setOnPreferenceChangeListener { _, newValue ->
                 updateScreenLockStateAndSummary(newValue as String)
                 true
@@ -428,23 +386,6 @@ class PreferencesActivity : AbstractBaseActivity() {
             }
             if (flags and ServerProperties.SERVER_FLAG_CHART_SCALING_SUPPORT == 0) {
                 preferenceScreen.removePreferenceFromHierarchy(chartScalingPreference)
-            }
-        }
-
-        override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-            when (requestCode) {
-                PERMISSIONS_REQUEST_READ_PHONE_STATE -> {
-                    if (grantResults.isEmpty() || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                        context?.showToast(R.string.settings_phone_state_permission_denied, ToastType.ERROR)
-                        phoneStatePref.setValue(checked = false)
-                    }
-                }
-                PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION -> {
-                    if (grantResults.isEmpty() || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                        context?.showToast(R.string.settings_wifi_ssid_permission_denied, ToastType.ERROR)
-                        wifiSsidPref.setValue(checked = false)
-                    }
-                }
             }
         }
 
@@ -503,14 +444,6 @@ class PreferencesActivity : AbstractBaseActivity() {
                 } catch (e: SecurityException) {
                     getString(R.string.settings_ringtone_on_external)
                 }
-            }
-        }
-
-        private fun updatePrefixSummary(pref: Preference, newValue: String?) {
-            pref.summary = if (newValue.isNullOrEmpty()) {
-                pref.context.getString(R.string.send_device_info_item_prefix_summary_not_set)
-            } else {
-                pref.context.getString(R.string.send_device_info_item_prefix_summary, newValue)
             }
         }
 
@@ -666,6 +599,87 @@ class PreferencesActivity : AbstractBaseActivity() {
             addPreferencesFromResource(R.xml.remote_connection_preferences)
             initPreferences(PrefKeys.REMOTE_URL, PrefKeys.REMOTE_USERNAME,
                 PrefKeys.REMOTE_PASSWORD, R.string.settings_openhab_alturl_summary)
+        }
+    }
+
+    internal class SendDeviceInfoSettingsFragment : AbstractSettingsFragment() {
+        override val titleResId: Int @StringRes get() = R.string.send_device_info_to_server
+        private lateinit var phoneStatePref: ItemUpdatingPreference
+        private lateinit var wifiSsidPref: ItemUpdatingPreference
+
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            addPreferencesFromResource(R.xml.preferences_device_information)
+
+            val sendDeviceInfoPrefixPref = getPreference(PrefKeys.SEND_DEVICE_INFO_PREFIX)
+            val alarmClockPref = getPreference(PrefKeys.SEND_ALARM_CLOCK) as ItemUpdatingPreference
+            phoneStatePref = getPreference(PrefKeys.SEND_PHONE_STATE) as ItemUpdatingPreference
+            val batteryLevelPref = getPreference(PrefKeys.SEND_BATTERY_LEVEL) as ItemUpdatingPreference
+            val chargingStatePref = getPreference(PrefKeys.SEND_CHARGING_STATE) as ItemUpdatingPreference
+            wifiSsidPref = getPreference(PrefKeys.SEND_CHARGING_STATE) as ItemUpdatingPreference
+
+            phoneStatePref.setOnPreferenceChangeListener { preference, newValue ->
+                @Suppress("UNCHECKED_CAST")
+                val value = newValue as Pair<Boolean, String>
+                if (value.first && !preference.context.hasPermission(Manifest.permission.READ_PHONE_STATE)) {
+                    Log.d(TAG, "Request READ_PHONE_STATE permission")
+                    requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE),
+                        PERMISSIONS_REQUEST_READ_PHONE_STATE)
+                }
+
+                true
+            }
+
+            wifiSsidPref.setOnPreferenceChangeListener { preference, newValue ->
+                @Suppress("UNCHECKED_CAST")
+                val value = newValue as Pair<Boolean, String>
+                if (value.first &&
+                    !preference.context.hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                ) {
+                    Log.d(TAG, "Request ACCESS_FINE_LOCATION permission")
+                    requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                        PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION)
+                }
+
+                true
+            }
+
+            updatePrefixSummary(sendDeviceInfoPrefixPref, prefs.getString(PrefKeys.SEND_DEVICE_INFO_PREFIX))
+            sendDeviceInfoPrefixPref.setOnPreferenceChangeListener { _, newValue ->
+                val prefix = newValue as String
+                updatePrefixSummary(sendDeviceInfoPrefixPref, prefix)
+                alarmClockPref.updateSummaryAndIcon(prefix)
+                phoneStatePref.updateSummaryAndIcon(prefix)
+                batteryLevelPref.updateSummaryAndIcon(prefix)
+                chargingStatePref.updateSummaryAndIcon(prefix)
+                wifiSsidPref.updateSummaryAndIcon(prefix)
+                true
+            }
+        }
+
+        private fun updatePrefixSummary(pref: Preference, newValue: String?) {
+            pref.summary = if (newValue.isNullOrEmpty()) {
+                pref.context.getString(R.string.send_device_info_item_prefix_summary_not_set)
+            } else {
+                pref.context.getString(R.string.send_device_info_item_prefix_summary, newValue)
+            }
+        }
+
+        override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+            when (requestCode) {
+                PERMISSIONS_REQUEST_READ_PHONE_STATE -> {
+                    if (grantResults.isEmpty() || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                        context?.showToast(R.string.settings_phone_state_permission_denied, ToastType.ERROR)
+                        phoneStatePref.setValue(checked = false)
+                    }
+                }
+                PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION -> {
+                    if (grantResults.isEmpty() || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                        context?.showToast(R.string.settings_wifi_ssid_permission_denied, ToastType.ERROR)
+                        wifiSsidPref.setValue(checked = false)
+                    }
+                }
+            }
         }
     }
 
